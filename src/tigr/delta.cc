@@ -1504,6 +1504,7 @@ ostream & DeltaGraph_t::outputIdy (ostream & out)
           refMatchedTotal = 0;
           pass = true;
           
+          vector<std::pair<int, int>> intervals;
           for ( eli  = (*ei)->edgelets.begin();
                 eli != (*ei)->edgelets.end(); ++ eli )
             {
@@ -1511,16 +1512,53 @@ ostream & DeltaGraph_t::outputIdy (ostream & out)
                 pass = false;
               idycTotal += (*eli)->idyc;
               refMatchedTotal += (*eli)->hiR - (*eli)->loR + 1;
+              intervals.push_back(make_pair((*eli)->loR, (*eli)->hiR));
             }
+
+          // calculate length of un-aligned reference sequence
+          int unionAligned = 0;
+          if (!intervals.empty())
+          {
+            sort(intervals.begin(), intervals.end(),
+                      [](const pair<int, int>& a, const pair<int, int>& b)
+                      { return a.first < b.first; });
+            
+            int curLo = intervals[0].first;
+            int curHi = intervals[0].second;
+            
+            for (size_t i = 1; i < intervals.size(); i++)
+            {
+              int nextLo = intervals[i].first;
+              int nextHi = intervals[i].second;
+              
+              if (nextLo <= curHi + 1)
+              {
+                curHi = max(curHi, nextHi);
+              }
+              else
+              {
+                unionAligned += curHi - curLo + 1;
+                
+                curLo = nextLo;
+                curHi = nextHi;
+              }
+            }
+            unionAligned += curHi - curLo + 1;
+          }
+          
           if (pass != true)
           {
 
+            double adjustedIdyc = (double)idycTotal / (double)refMatchedTotal + ((*ei)->refnode->len - (double)unionAligned);
+            idy = ((double)(*ei)->qrynode->len - adjustedIdyc) / (double)(*ei)->qrynode->len;
+            /*
             if ((*ei)->refnode->len < (*ei)->qrynode->len)
             {
               idy = (double)(((*ei)->qrynode->len - idycTotal - ((*ei)->refnode->len - refMatchedTotal))) / (double)((*ei)->qrynode->len);
             }else{
               idy = (double)(((*ei)->refnode->len - idycTotal - ((*ei)->refnode->len - refMatchedTotal))) / (double)((*ei)->refnode->len);
             }
+            */
             out
               << '>'
               << *((*ei)->refnode->id) << ' '
